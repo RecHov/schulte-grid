@@ -343,6 +343,14 @@
       gap: 8px;
       align-items: center;
       flex: 0 0 auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .archive-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
     }
 
     .archive-backdrop {
@@ -632,6 +640,7 @@
       <div class="archive-head">
         <h2 class="archive-title">个人档案</h2>
         <div class="archive-actions">
+          <button class="ghost" id="syncObsidian" type="button">同步</button>
           <button class="ghost" id="clearHistory" type="button">清空</button>
           <button class="ghost" id="closeArchive" type="button">收起</button>
         </div>
@@ -655,6 +664,7 @@
         </div>
       </div>
       <div class="state-line" id="stateLine">完成几局后，这里会显示你的正常水平。</div>
+      <div class="archive-note" id="storageNote">成绩先保存在当前浏览器；点“同步”可追加到 Obsidian。</div>
       <div class="history" id="history"></div>
     </section>
   </main>
@@ -709,6 +719,7 @@
     const openArchive = document.querySelector("#openArchive");
     const closeArchive = document.querySelector("#closeArchive");
     const archiveBackdrop = document.querySelector("#archiveBackdrop");
+    const syncObsidian = document.querySelector("#syncObsidian");
     const clearHistory = document.querySelector("#clearHistory");
     const totalGames = document.querySelector("#totalGames");
     const averageScore = document.querySelector("#averageScore");
@@ -728,6 +739,8 @@
       rafId: 0
     };
 
+    const obsidianVaultName = "Rh's Obsidian";
+    const obsidianResultFile = "_agents/data/schulte-grid-results.md";
     const bestKey = () => `schulte-best-${state.size}`;
     const historyKey = () => `schulte-history-${state.size}`;
 
@@ -870,6 +883,71 @@
       writeHistory(records);
     }
 
+    function makeObsidianSnapshot() {
+      const records = readHistory();
+      const limit = 50;
+      const visibleRecords = records.slice(0, limit);
+      const recent = records.slice(0, Math.min(5, records.length));
+      const now = new Date();
+      const header = [
+        "",
+        `## ${now.toLocaleString("zh-CN")} · ${state.size}x${state.size}`,
+        "",
+        `- 总局数：${records.length}`,
+        `- 最佳：${records.length ? formatTime(Math.min(...records.map((item) => item.time))) : "--"} 秒`,
+        `- 平均：${records.length ? formatTime(average(records)) : "--"} 秒`,
+        `- 中位：${records.length ? formatTime(median(records)) : "--"} 秒`,
+        `- 近5局：${recent.length ? formatTime(average(recent)) : "--"} 秒`,
+        `- 来源：舒尔特方格网页 ${location.href.split("?")[0]}`,
+        ""
+      ];
+
+      if (!visibleRecords.length) {
+        return `${header.join("\n")}暂无成绩。\n`;
+      }
+
+      const table = [
+        "| 序号 | 时间 | 失误 | 准确率 | 日期 |",
+        "| ---: | ---: | ---: | ---: | --- |",
+        ...visibleRecords.map((item, index) => {
+          const createdAt = new Date(item.createdAt);
+          const date = Number.isNaN(createdAt.getTime())
+            ? ""
+            : createdAt.toLocaleString("zh-CN");
+          return `| ${records.length - index} | ${formatTime(item.time)} | ${item.misses} | ${item.accuracy}% | ${date} |`;
+        })
+      ];
+
+      const foot = records.length > limit
+        ? ["", `> 本次仅同步最近 ${limit} 条；浏览器本地仍保留最多 300 条。`]
+        : [];
+
+      return `${header.concat(table, foot).join("\n")}\n`;
+    }
+
+    async function copySnapshot(text) {
+      if (!navigator.clipboard) return false;
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    async function syncToObsidian() {
+      const snapshot = makeObsidianSnapshot();
+      await copySnapshot(snapshot);
+
+      const params = new URLSearchParams({
+        vault: obsidianVaultName,
+        file: obsidianResultFile,
+        content: snapshot,
+        append: "true"
+      });
+      location.href = `obsidian://new?${params.toString()}`;
+    }
+
     function showArchive() {
       renderArchive();
       document.querySelector(".archive").classList.add("show");
@@ -1008,6 +1086,7 @@
     openArchive.addEventListener("click", showArchive);
     closeArchive.addEventListener("click", hideArchive);
     archiveBackdrop.addEventListener("click", hideArchive);
+    syncObsidian.addEventListener("click", syncToObsidian);
     clearHistory.addEventListener("click", () => {
       if (!confirm("清空当前模式的所有记录？")) return;
       clearCurrentHistory();
