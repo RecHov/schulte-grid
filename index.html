@@ -285,6 +285,109 @@
       box-shadow: 0 3px 10px rgba(27, 31, 36, .08);
     }
 
+    .archive {
+      border: 1px solid rgba(98, 106, 114, .18);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .76);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .archive-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .archive-title {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .ghost {
+      min-height: 34px;
+      border-radius: 8px;
+      border: 1px solid rgba(98, 106, 114, .22);
+      background: #fffdf8;
+      color: var(--muted);
+      padding: 0 10px;
+      font-size: 13px;
+    }
+
+    .archive-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .metric {
+      min-width: 0;
+      border: 1px solid rgba(98, 106, 114, .16);
+      border-radius: 8px;
+      background: rgba(255, 253, 248, .86);
+      padding: 9px 8px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 18px;
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0;
+    }
+
+    .state-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-radius: 8px;
+      background: rgba(18, 111, 107, .08);
+      padding: 10px;
+      color: var(--accent-strong);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .history {
+      display: grid;
+      gap: 6px;
+    }
+
+    .history-row {
+      display: grid;
+      grid-template-columns: 42px 1fr 48px 66px;
+      gap: 8px;
+      align-items: center;
+      min-height: 32px;
+      border-top: 1px solid rgba(98, 106, 114, .14);
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .history-row:first-child {
+      border-top: 0;
+    }
+
+    .history-row strong {
+      color: var(--ink);
+      font-size: 15px;
+    }
+
     .result {
       position: fixed;
       inset: 0;
@@ -317,7 +420,7 @@
 
     .result-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 8px;
       margin-bottom: 14px;
     }
@@ -399,6 +502,19 @@
         grid-template-columns: repeat(2, 1fr);
         flex: 1;
       }
+
+      .archive-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .history-row {
+        grid-template-columns: 34px 1fr 42px 58px;
+        font-size: 12px;
+      }
+
+      .result-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -464,6 +580,33 @@
         </div>
       </div>
     </section>
+
+    <section class="archive" aria-label="个人档案">
+      <div class="archive-head">
+        <h2 class="archive-title">个人档案</h2>
+        <button class="ghost" id="clearHistory" type="button">清空</button>
+      </div>
+      <div class="archive-grid">
+        <div class="metric">
+          <span>局数</span>
+          <strong id="totalGames">0</strong>
+        </div>
+        <div class="metric">
+          <span>平均</span>
+          <strong id="averageScore">--</strong>
+        </div>
+        <div class="metric">
+          <span>中位</span>
+          <strong id="medianScore">--</strong>
+        </div>
+        <div class="metric">
+          <span>近5局</span>
+          <strong id="recentAverage">--</strong>
+        </div>
+      </div>
+      <div class="state-line" id="stateLine">完成几局后，这里会显示你的正常水平。</div>
+      <div class="history" id="history"></div>
+    </section>
   </main>
 
   <div class="result" id="result" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
@@ -481,6 +624,10 @@
         <div class="result-cell">
           <span>准确</span>
           <strong id="finalAccuracy">100%</strong>
+        </div>
+        <div class="result-cell">
+          <span>状态</span>
+          <strong id="finalState">--</strong>
         </div>
       </div>
       <div class="dialog-actions">
@@ -501,11 +648,19 @@
     const finalTime = document.querySelector("#finalTime");
     const finalMisses = document.querySelector("#finalMisses");
     const finalAccuracy = document.querySelector("#finalAccuracy");
+    const finalState = document.querySelector("#finalState");
     const closeResult = document.querySelector("#closeResult");
     const again = document.querySelector("#again");
     const modeClassic = document.querySelector("#modeClassic");
     const modeSmall = document.querySelector("#modeSmall");
     const subtitle = document.querySelector(".subtitle");
+    const clearHistory = document.querySelector("#clearHistory");
+    const totalGames = document.querySelector("#totalGames");
+    const averageScore = document.querySelector("#averageScore");
+    const medianScore = document.querySelector("#medianScore");
+    const recentAverage = document.querySelector("#recentAverage");
+    const stateLine = document.querySelector("#stateLine");
+    const history = document.querySelector("#history");
 
     const state = {
       size: 5,
@@ -518,11 +673,12 @@
       rafId: 0
     };
 
-    const storageKey = () => `schulte-best-${state.size}`;
+    const bestKey = () => `schulte-best-${state.size}`;
+    const historyKey = () => `schulte-history-${state.size}`;
 
     function readBest() {
       try {
-        return Number(localStorage.getItem(storageKey()) || 0);
+        return Number(localStorage.getItem(bestKey()) || 0);
       } catch {
         return 0;
       }
@@ -530,7 +686,33 @@
 
     function writeBest(value) {
       try {
-        localStorage.setItem(storageKey(), String(Math.round(value)));
+        localStorage.setItem(bestKey(), String(Math.round(value)));
+      } catch {
+        // Some local-file mobile browsers disable storage.
+      }
+    }
+
+    function readHistory() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(historyKey()) || "[]");
+        return Array.isArray(parsed) ? parsed.filter((item) => item && Number.isFinite(item.time)) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function writeHistory(records) {
+      try {
+        localStorage.setItem(historyKey(), JSON.stringify(records.slice(0, 300)));
+      } catch {
+        // Some local-file mobile browsers disable storage.
+      }
+    }
+
+    function clearCurrentHistory() {
+      try {
+        localStorage.removeItem(historyKey());
+        localStorage.removeItem(bestKey());
       } catch {
         // Some local-file mobile browsers disable storage.
       }
@@ -549,9 +731,88 @@
       return (ms / 1000).toFixed(2);
     }
 
+    function average(records) {
+      if (!records.length) return 0;
+      return records.reduce((sum, item) => sum + item.time, 0) / records.length;
+    }
+
+    function median(records) {
+      if (!records.length) return 0;
+      const values = records.map((item) => item.time).sort((a, b) => a - b);
+      const middle = Math.floor(values.length / 2);
+      if (values.length % 2) return values[middle];
+      return (values[middle - 1] + values[middle]) / 2;
+    }
+
+    function describeState(time, baseline) {
+      if (!baseline) return "样本不足";
+      const ratio = time / baseline;
+      if (ratio <= 0.9) return "明显更快";
+      if (ratio <= 0.97) return "偏快";
+      if (ratio <= 1.05) return "正常";
+      if (ratio <= 1.15) return "偏慢";
+      return "明显偏慢";
+    }
+
+    function stateSentence(records) {
+      if (!records.length) return "完成几局后，这里会显示你的正常水平。";
+      if (records.length < 5) return `已记录 ${records.length} 局；再多测几局，中位数会更稳。`;
+
+      const normal = median(records);
+      const latest = records[0].time;
+      const recent = average(records.slice(0, Math.min(5, records.length)));
+      const latestState = describeState(latest, normal);
+      const recentState = describeState(recent, normal);
+      return `最近一局 ${latestState}，近5局 ${recentState}；你的正常水平约 ${formatTime(normal)} 秒。`;
+    }
+
     function setBest() {
-      const best = readBest();
+      const records = readHistory();
+      const historyBest = records.length ? Math.min(...records.map((item) => item.time)) : 0;
+      const best = historyBest || readBest();
       bestText.textContent = best ? formatTime(best) : "--";
+    }
+
+    function renderArchive() {
+      const records = readHistory();
+      const recent = records.slice(0, Math.min(5, records.length));
+      totalGames.textContent = String(records.length);
+      averageScore.textContent = records.length ? formatTime(average(records)) : "--";
+      medianScore.textContent = records.length ? formatTime(median(records)) : "--";
+      recentAverage.textContent = recent.length ? formatTime(average(recent)) : "--";
+      stateLine.textContent = stateSentence(records);
+
+      if (!records.length) {
+        history.innerHTML = "";
+        return;
+      }
+
+      history.innerHTML = records.slice(0, 5).map((item, index) => {
+        const date = new Date(item.createdAt);
+        const time = Number.isNaN(date.getTime())
+          ? ""
+          : date.toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
+        return `
+          <div class="history-row">
+            <span>#${records.length - index}</span>
+            <strong>${formatTime(item.time)}</strong>
+            <span>${item.misses} 误</span>
+            <span>${time}</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function saveResult(elapsed, accuracy) {
+      const records = readHistory();
+      records.unshift({
+        time: Math.round(elapsed),
+        misses: state.misses,
+        accuracy,
+        size: state.size,
+        createdAt: new Date().toISOString()
+      });
+      writeHistory(records);
     }
 
     function drawBoard() {
@@ -586,6 +847,7 @@
       result.classList.remove("show");
       drawBoard();
       setBest();
+      renderArchive();
       if (options.startNow) startTimer();
     }
 
@@ -612,17 +874,21 @@
       timeText.textContent = formatTime(elapsed);
       startButton.textContent = "完成";
 
-      const best = readBest();
-      if (!best || elapsed < best) {
-        writeBest(elapsed);
-        setBest();
-      }
-
       const attempts = state.size * state.size + state.misses;
       const accuracy = Math.round((state.size * state.size / attempts) * 100);
+      const previousRecords = readHistory();
+      const previousNormal = median(previousRecords);
+      saveResult(elapsed, accuracy);
+
+      const best = readBest();
+      if (!best || elapsed < best) writeBest(elapsed);
+      setBest();
+      renderArchive();
+
       finalTime.textContent = formatTime(elapsed);
       finalMisses.textContent = String(state.misses);
       finalAccuracy.textContent = `${accuracy}%`;
+      finalState.textContent = describeState(elapsed, previousNormal);
       result.classList.add("show");
       vibrate(35);
     }
@@ -673,6 +939,12 @@
     resetButton.addEventListener("click", () => resetGame());
     closeResult.addEventListener("click", () => result.classList.remove("show"));
     again.addEventListener("click", () => resetGame({ startNow: true }));
+    clearHistory.addEventListener("click", () => {
+      if (!confirm("清空当前模式的所有记录？")) return;
+      clearCurrentHistory();
+      setBest();
+      renderArchive();
+    });
     result.addEventListener("click", (event) => {
       if (event.target === result) result.classList.remove("show");
     });
