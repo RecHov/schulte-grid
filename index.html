@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#f5f1e9">
+  <title>舒尔特方格</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f1e9;
+      --panel: #ffffff;
+      --ink: #1b1f24;
+      --muted: #626a72;
+      --line: #d9d2c3;
+      --accent: #126f6b;
+      --accent-strong: #0c5753;
+      --warn: #b44a2a;
+      --ok: #2e7d4f;
+      --tile: #fbfaf6;
+      --tile-done: #dfe4e2;
+      --shadow: 0 18px 48px rgba(27, 31, 36, .12);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      background:
+        linear-gradient(135deg, rgba(18, 111, 107, .12), transparent 34%),
+        radial-gradient(circle at 90% 12%, rgba(180, 74, 42, .12), transparent 28%),
+        var(--bg);
+      color: var(--ink);
+      overscroll-behavior: none;
+      touch-action: manipulation;
+    }
+
+    button {
+      border: 0;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .app {
+      width: min(100%, 720px);
+      min-height: 100svh;
+      margin: 0 auto;
+      padding: max(16px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      gap: 14px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(18, 111, 107, .35);
+      border-radius: 8px;
+      background:
+        linear-gradient(90deg, rgba(18, 111, 107, .18) 1px, transparent 1px),
+        linear-gradient(rgba(18, 111, 107, .18) 1px, transparent 1px),
+        #fffdf8;
+      background-size: 14px 14px;
+      box-shadow: inset 0 0 0 5px rgba(255,255,255,.72);
+      flex: 0 0 auto;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .stat {
+      min-width: 0;
+      border: 1px solid rgba(98, 106, 114, .18);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .72);
+      padding: 10px;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 20px;
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0;
+    }
+
+    .board-wrap {
+      min-height: 0;
+      display: grid;
+      place-items: center;
+    }
+
+    .board-shell {
+      width: min(100%, calc(100svh - 235px));
+      max-width: 560px;
+      min-width: min(100%, 300px);
+      aspect-ratio: 1;
+      border: 1px solid rgba(98, 106, 114, .24);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .82);
+      padding: clamp(8px, 2.2vw, 14px);
+      box-shadow: var(--shadow);
+    }
+
+    .board {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-rows: repeat(5, minmax(0, 1fr));
+      gap: clamp(6px, 1.6vw, 10px);
+    }
+
+    .tile {
+      position: relative;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--tile);
+      color: var(--ink);
+      font-weight: 750;
+      font-size: clamp(20px, 7.8vw, 42px);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 5px 0 rgba(98, 106, 114, .18);
+      transition: transform .08s ease, background .12s ease, border-color .12s ease, color .12s ease, opacity .12s ease;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    .tile:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 rgba(98, 106, 114, .22);
+    }
+
+    .tile.done {
+      border-color: transparent;
+      background: var(--tile-done);
+      color: transparent;
+      box-shadow: none;
+      pointer-events: none;
+    }
+
+    .tile.miss {
+      animation: miss .18s ease;
+    }
+
+    .tile.hit {
+      animation: hit .2s ease;
+    }
+
+    @keyframes miss {
+      0%, 100% { transform: translateX(0); border-color: var(--line); }
+      30% { transform: translateX(-4px); border-color: var(--warn); }
+      65% { transform: translateX(4px); border-color: var(--warn); }
+    }
+
+    @keyframes hit {
+      0% { transform: scale(1); }
+      55% { transform: scale(.94); background: #d6eee3; }
+      100% { transform: scale(1); }
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .primary,
+    .icon-btn,
+    .mode button {
+      min-height: 46px;
+      border-radius: 8px;
+      border: 1px solid rgba(98, 106, 114, .22);
+      background: #fffdf8;
+      box-shadow: 0 6px 18px rgba(27, 31, 36, .08);
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      padding: 0 16px;
+    }
+
+    .primary:active,
+    .icon-btn:active,
+    .mode button:active {
+      transform: translateY(1px);
+    }
+
+    .side-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .icon-btn {
+      width: 48px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+
+    .icon-btn svg {
+      width: 21px;
+      height: 21px;
+      stroke-width: 2.3;
+    }
+
+    .mode {
+      display: grid;
+      grid-template-columns: repeat(2, 46px);
+      border: 1px solid rgba(98, 106, 114, .22);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .5);
+      padding: 3px;
+    }
+
+    .mode button {
+      min-height: 38px;
+      border: 0;
+      box-shadow: none;
+      color: var(--muted);
+      font-weight: 700;
+      background: transparent;
+    }
+
+    .mode button.active {
+      background: #fffdf8;
+      color: var(--accent-strong);
+      box-shadow: 0 3px 10px rgba(27, 31, 36, .08);
+    }
+
+    .result {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: end center;
+      padding: 16px;
+      background: rgba(27, 31, 36, .28);
+      z-index: 10;
+    }
+
+    .result.show {
+      display: grid;
+    }
+
+    .dialog {
+      width: min(100%, 440px);
+      border-radius: 8px;
+      background: #fffdf8;
+      color: var(--ink);
+      padding: 18px;
+      box-shadow: 0 24px 70px rgba(0,0,0,.24);
+    }
+
+    .dialog h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .result-cell {
+      border: 1px solid rgba(98, 106, 114, .2);
+      border-radius: 8px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+
+    .result-cell span {
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+    }
+
+    .result-cell strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 19px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dialog-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .dialog-actions button {
+      min-height: 46px;
+      border-radius: 8px;
+      font-weight: 700;
+    }
+
+    .dialog-actions button:first-child {
+      background: #ece7dc;
+    }
+
+    .dialog-actions button:last-child {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    @media (max-width: 380px) {
+      .app {
+        padding-left: 12px;
+        padding-right: 12px;
+        gap: 10px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      .mark {
+        width: 38px;
+        height: 38px;
+      }
+
+      .stat {
+        padding: 8px 7px;
+      }
+
+      .stat strong {
+        font-size: 18px;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .side-controls {
+        justify-content: space-between;
+      }
+
+      .mode {
+        grid-template-columns: repeat(2, 1fr);
+        flex: 1;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tile,
+      .primary,
+      .icon-btn,
+      .mode button {
+        transition: none;
+      }
+
+      .tile.miss,
+      .tile.hit {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <div>
+          <h1>舒尔特方格</h1>
+          <div class="subtitle">经典 5×5</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="stats" aria-label="成绩">
+      <div class="stat">
+        <span>时间</span>
+        <strong id="time">0.00</strong>
+      </div>
+      <div class="stat">
+        <span>失误</span>
+        <strong id="misses">0</strong>
+      </div>
+      <div class="stat">
+        <span>最佳</span>
+        <strong id="best">--</strong>
+      </div>
+    </section>
+
+    <section class="board-wrap">
+      <div class="board-shell">
+        <div class="board" id="board" aria-label="数字方格"></div>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="控制">
+      <button class="primary" id="start">开始</button>
+      <div class="side-controls">
+        <button class="icon-btn" id="reset" aria-label="重开" title="重开">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+            <path d="M3 4v6h6"></path>
+          </svg>
+        </button>
+        <div class="mode" aria-label="模式">
+          <button type="button" id="modeClassic" class="active">5×5</button>
+          <button type="button" id="modeSmall">4×4</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="result" id="result" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+    <div class="dialog">
+      <h2 id="resultTitle">完成</h2>
+      <div class="result-grid">
+        <div class="result-cell">
+          <span>时间</span>
+          <strong id="finalTime">0.00</strong>
+        </div>
+        <div class="result-cell">
+          <span>失误</span>
+          <strong id="finalMisses">0</strong>
+        </div>
+        <div class="result-cell">
+          <span>准确</span>
+          <strong id="finalAccuracy">100%</strong>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button id="closeResult">收起</button>
+        <button id="again">再来</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const board = document.querySelector("#board");
+    const startButton = document.querySelector("#start");
+    const resetButton = document.querySelector("#reset");
+    const timeText = document.querySelector("#time");
+    const missesText = document.querySelector("#misses");
+    const bestText = document.querySelector("#best");
+    const result = document.querySelector("#result");
+    const finalTime = document.querySelector("#finalTime");
+    const finalMisses = document.querySelector("#finalMisses");
+    const finalAccuracy = document.querySelector("#finalAccuracy");
+    const closeResult = document.querySelector("#closeResult");
+    const again = document.querySelector("#again");
+    const modeClassic = document.querySelector("#modeClassic");
+    const modeSmall = document.querySelector("#modeSmall");
+    const subtitle = document.querySelector(".subtitle");
+
+    const state = {
+      size: 5,
+      next: 1,
+      misses: 0,
+      started: false,
+      finished: false,
+      startTime: 0,
+      elapsed: 0,
+      rafId: 0
+    };
+
+    const storageKey = () => `schulte-best-${state.size}`;
+
+    function readBest() {
+      try {
+        return Number(localStorage.getItem(storageKey()) || 0);
+      } catch {
+        return 0;
+      }
+    }
+
+    function writeBest(value) {
+      try {
+        localStorage.setItem(storageKey(), String(Math.round(value)));
+      } catch {
+        // Some local-file mobile browsers disable storage.
+      }
+    }
+
+    function shuffle(values) {
+      const list = [...values];
+      for (let i = list.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      return list;
+    }
+
+    function formatTime(ms) {
+      return (ms / 1000).toFixed(2);
+    }
+
+    function setBest() {
+      const best = readBest();
+      bestText.textContent = best ? formatTime(best) : "--";
+    }
+
+    function drawBoard() {
+      const max = state.size * state.size;
+      board.style.gridTemplateColumns = `repeat(${state.size}, minmax(0, 1fr))`;
+      board.style.gridTemplateRows = `repeat(${state.size}, minmax(0, 1fr))`;
+      board.innerHTML = "";
+
+      shuffle(Array.from({ length: max }, (_, index) => index + 1)).forEach((value) => {
+        const tile = document.createElement("button");
+        tile.className = "tile";
+        tile.type = "button";
+        tile.dataset.value = String(value);
+        tile.textContent = value;
+        tile.setAttribute("aria-label", String(value));
+        board.append(tile);
+      });
+
+    }
+
+    function resetGame(options = {}) {
+      cancelAnimationFrame(state.rafId);
+      state.next = 1;
+      state.misses = 0;
+      state.started = false;
+      state.finished = false;
+      state.startTime = 0;
+      state.elapsed = 0;
+      timeText.textContent = "0.00";
+      missesText.textContent = "0";
+      startButton.textContent = "开始";
+      result.classList.remove("show");
+      drawBoard();
+      setBest();
+      if (options.startNow) startTimer();
+    }
+
+    function tick(now) {
+      if (!state.started || state.finished) return;
+      state.elapsed = now - state.startTime;
+      timeText.textContent = formatTime(state.elapsed);
+      state.rafId = requestAnimationFrame(tick);
+    }
+
+    function startTimer() {
+      if (state.started || state.finished) return;
+      state.started = true;
+      state.startTime = performance.now();
+      startButton.textContent = "进行中";
+      state.rafId = requestAnimationFrame(tick);
+    }
+
+    function finishGame() {
+      state.finished = true;
+      cancelAnimationFrame(state.rafId);
+      const elapsed = Math.max(1, performance.now() - state.startTime);
+      state.elapsed = elapsed;
+      timeText.textContent = formatTime(elapsed);
+      startButton.textContent = "完成";
+
+      const best = readBest();
+      if (!best || elapsed < best) {
+        writeBest(elapsed);
+        setBest();
+      }
+
+      const attempts = state.size * state.size + state.misses;
+      const accuracy = Math.round((state.size * state.size / attempts) * 100);
+      finalTime.textContent = formatTime(elapsed);
+      finalMisses.textContent = String(state.misses);
+      finalAccuracy.textContent = `${accuracy}%`;
+      result.classList.add("show");
+      vibrate(35);
+    }
+
+    function vibrate(ms) {
+      if ("vibrate" in navigator) navigator.vibrate(ms);
+    }
+
+    function flash(tile, className) {
+      tile.classList.remove(className);
+      void tile.offsetWidth;
+      tile.classList.add(className);
+    }
+
+    board.addEventListener("click", (event) => {
+      const tile = event.target.closest(".tile");
+      if (!tile || state.finished) return;
+
+      const value = Number(tile.dataset.value);
+      if (value === state.next) {
+        if (!state.started) startTimer();
+        flash(tile, "hit");
+        tile.classList.add("done");
+        state.next += 1;
+
+        const max = state.size * state.size;
+        if (state.next > max) {
+          finishGame();
+          return;
+        }
+
+      } else {
+        state.misses += 1;
+        missesText.textContent = String(state.misses);
+        flash(tile, "miss");
+        vibrate(18);
+      }
+    });
+
+    startButton.addEventListener("click", () => {
+      if (state.finished) {
+        resetGame({ startNow: true });
+        return;
+      }
+      if (!state.started) startTimer();
+    });
+
+    resetButton.addEventListener("click", () => resetGame());
+    closeResult.addEventListener("click", () => result.classList.remove("show"));
+    again.addEventListener("click", () => resetGame({ startNow: true }));
+    result.addEventListener("click", (event) => {
+      if (event.target === result) result.classList.remove("show");
+    });
+
+    function setMode(size) {
+      if (state.size === size) return;
+      state.size = size;
+      modeClassic.classList.toggle("active", size === 5);
+      modeSmall.classList.toggle("active", size === 4);
+      subtitle.textContent = size === 5 ? "经典 5×5" : "快速 4×4";
+      resetGame();
+    }
+
+    modeClassic.addEventListener("click", () => setMode(5));
+    modeSmall.addEventListener("click", () => setMode(4));
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && state.started && !state.finished) {
+        cancelAnimationFrame(state.rafId);
+      } else if (!document.hidden && state.started && !state.finished) {
+        const shownAt = performance.now();
+        state.startTime = shownAt - state.elapsed;
+        state.rafId = requestAnimationFrame(tick);
+      }
+    });
+
+    resetGame();
+  </script>
+</body>
+</html>
