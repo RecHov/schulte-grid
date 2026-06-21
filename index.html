@@ -30,11 +30,15 @@
 
     html,
     body {
-      min-height: 100%;
+      width: 100%;
+      height: 100%;
       margin: 0;
+      overflow: hidden;
     }
 
     body {
+      position: fixed;
+      inset: 0;
       background:
         linear-gradient(135deg, rgba(18, 111, 107, .12), transparent 34%),
         radial-gradient(circle at 90% 12%, rgba(180, 74, 42, .12), transparent 28%),
@@ -53,12 +57,14 @@
 
     .app {
       width: min(100%, 720px);
-      min-height: 100svh;
+      height: 100dvh;
+      min-height: 0;
       margin: 0 auto;
-      padding: max(16px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+      padding: max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));
       display: grid;
       grid-template-rows: auto auto minmax(0, 1fr) auto;
-      gap: 14px;
+      gap: clamp(8px, 1.5dvh, 14px);
+      overflow: hidden;
     }
 
     .topbar {
@@ -138,17 +144,18 @@
       min-height: 0;
       display: grid;
       place-items: center;
+      overflow: hidden;
     }
 
     .board-shell {
-      width: min(100%, calc(100svh - 235px));
+      width: min(100%, calc(100dvh - 205px));
+      height: auto;
       max-width: 560px;
-      min-width: min(100%, 300px);
       aspect-ratio: 1;
       border: 1px solid rgba(98, 106, 114, .24);
       border-radius: 8px;
       background: rgba(255, 255, 255, .82);
-      padding: clamp(8px, 2.2vw, 14px);
+      padding: clamp(7px, 1.8vw, 14px);
       box-shadow: var(--shadow);
     }
 
@@ -286,12 +293,25 @@
     }
 
     .archive {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      max-height: min(72dvh, 520px);
+      z-index: 11;
       border: 1px solid rgba(98, 106, 114, .18);
       border-radius: 8px;
-      background: rgba(255, 255, 255, .76);
+      background: #fffdf8;
       padding: 12px;
-      display: grid;
+      display: none;
       gap: 10px;
+      overflow: auto;
+      overscroll-behavior: contain;
+      box-shadow: 0 24px 70px rgba(0,0,0,.22);
+    }
+
+    .archive.show {
+      display: grid;
     }
 
     .archive-head {
@@ -316,6 +336,25 @@
       color: var(--muted);
       padding: 0 10px;
       font-size: 13px;
+    }
+
+    .archive-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+
+    .archive-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: none;
+      background: rgba(27, 31, 36, .26);
+    }
+
+    .archive-backdrop.show {
+      display: block;
     }
 
     .archive-grid {
@@ -491,16 +530,15 @@
       }
 
       .controls {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) auto;
       }
 
       .side-controls {
-        justify-content: space-between;
+        justify-content: flex-end;
       }
 
       .mode {
-        grid-template-columns: repeat(2, 1fr);
-        flex: 1;
+        grid-template-columns: repeat(2, 40px);
       }
 
       .archive-grid {
@@ -568,6 +606,15 @@
     <section class="controls" aria-label="控制">
       <button class="primary" id="start">开始</button>
       <div class="side-controls">
+        <button class="icon-btn" id="openArchive" aria-label="档案" title="档案">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M4 19V5"></path>
+            <path d="M4 19h16"></path>
+            <path d="M8 16v-5"></path>
+            <path d="M12 16V8"></path>
+            <path d="M16 16v-3"></path>
+          </svg>
+        </button>
         <button class="icon-btn" id="reset" aria-label="重开" title="重开">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
             <path d="M3 12a9 9 0 1 0 3-6.7"></path>
@@ -584,7 +631,10 @@
     <section class="archive" aria-label="个人档案">
       <div class="archive-head">
         <h2 class="archive-title">个人档案</h2>
-        <button class="ghost" id="clearHistory" type="button">清空</button>
+        <div class="archive-actions">
+          <button class="ghost" id="clearHistory" type="button">清空</button>
+          <button class="ghost" id="closeArchive" type="button">收起</button>
+        </div>
       </div>
       <div class="archive-grid">
         <div class="metric">
@@ -608,6 +658,8 @@
       <div class="history" id="history"></div>
     </section>
   </main>
+
+  <div class="archive-backdrop" id="archiveBackdrop" aria-hidden="true"></div>
 
   <div class="result" id="result" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
     <div class="dialog">
@@ -654,6 +706,9 @@
     const modeClassic = document.querySelector("#modeClassic");
     const modeSmall = document.querySelector("#modeSmall");
     const subtitle = document.querySelector(".subtitle");
+    const openArchive = document.querySelector("#openArchive");
+    const closeArchive = document.querySelector("#closeArchive");
+    const archiveBackdrop = document.querySelector("#archiveBackdrop");
     const clearHistory = document.querySelector("#clearHistory");
     const totalGames = document.querySelector("#totalGames");
     const averageScore = document.querySelector("#averageScore");
@@ -815,6 +870,17 @@
       writeHistory(records);
     }
 
+    function showArchive() {
+      renderArchive();
+      document.querySelector(".archive").classList.add("show");
+      archiveBackdrop.classList.add("show");
+    }
+
+    function hideArchive() {
+      document.querySelector(".archive").classList.remove("show");
+      archiveBackdrop.classList.remove("show");
+    }
+
     function drawBoard() {
       const max = state.size * state.size;
       board.style.gridTemplateColumns = `repeat(${state.size}, minmax(0, 1fr))`;
@@ -939,6 +1005,9 @@
     resetButton.addEventListener("click", () => resetGame());
     closeResult.addEventListener("click", () => result.classList.remove("show"));
     again.addEventListener("click", () => resetGame({ startNow: true }));
+    openArchive.addEventListener("click", showArchive);
+    closeArchive.addEventListener("click", hideArchive);
+    archiveBackdrop.addEventListener("click", hideArchive);
     clearHistory.addEventListener("click", () => {
       if (!confirm("清空当前模式的所有记录？")) return;
       clearCurrentHistory();
@@ -970,6 +1039,11 @@
         state.rafId = requestAnimationFrame(tick);
       }
     });
+
+    document.addEventListener("touchmove", (event) => {
+      if (event.target.closest(".archive")) return;
+      event.preventDefault();
+    }, { passive: false });
 
     resetGame();
   </script>
